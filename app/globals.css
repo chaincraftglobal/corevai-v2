@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* CoreVAI neutral theme */
+@theme {
+  --color-corevai-bg: #F7F7F8;
+  --color-corevai-text: #111827;
+  --color-corevai-card: #FFFFFF;
+  --color-corevai-border: #E5E7EB;
+  --color-corevai-accent: #111111;
+  /* dark gray/black for UI accents */
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-corevai-bg text-corevai-text;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
