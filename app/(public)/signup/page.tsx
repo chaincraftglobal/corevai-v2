@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Image from "next/image";
 
 export default function SignupPage() {
     const router = useRouter();
@@ -13,6 +14,7 @@ export default function SignupPage() {
         e.preventDefault();
         setErr(null);
         setLoading(true);
+
         const fd = new FormData(e.currentTarget);
         const name = (fd.get("name") as string).trim();
         const email = (fd.get("email") as string).toLowerCase().trim();
@@ -31,7 +33,11 @@ export default function SignupPage() {
             return;
         }
 
-        const login = await signIn("credentials", { email, password, redirect: false });
+        const login = await signIn("credentials", {
+            email,
+            password,
+            redirect: false,
+        });
         setLoading(false);
 
         if (login?.error) {
@@ -43,13 +49,38 @@ export default function SignupPage() {
 
     return (
         <div className="max-w-md mx-auto py-12">
-            <h1 className="text-2xl font-semibold mb-6">Create your CoreVAI account</h1>
+            <h1 className="text-2xl font-semibold mb-6">
+                Create your CoreVAI account
+            </h1>
+
             <form onSubmit={handleSignup} className="space-y-4">
-                <input name="name" type="text" placeholder="Full name" required className="w-full border px-3 py-2 rounded-md" />
-                <input name="email" type="email" placeholder="Email" required className="w-full border px-3 py-2 rounded-md" />
-                <input name="password" type="password" placeholder="Password (min 6)" required className="w-full border px-3 py-2 rounded-md" />
+                <input
+                    name="name"
+                    type="text"
+                    placeholder="Full name"
+                    required
+                    className="w-full border px-3 py-2 rounded-md"
+                />
+                <input
+                    name="email"
+                    type="email"
+                    placeholder="Email"
+                    required
+                    className="w-full border px-3 py-2 rounded-md"
+                />
+                <input
+                    name="password"
+                    type="password"
+                    placeholder="Password (min 6)"
+                    required
+                    className="w-full border px-3 py-2 rounded-md"
+                />
                 {err && <p className="text-sm text-red-600">{err}</p>}
-                <button type="submit" disabled={loading} className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800">
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800"
+                >
                     {loading ? "Creating account..." : "Sign up"}
                 </button>
             </form>
@@ -60,7 +91,13 @@ export default function SignupPage() {
                 onClick={() => signIn("google", { callbackUrl: "/chats" })}
                 className="w-full flex items-center justify-center gap-2 border py-2 rounded-md hover:bg-gray-50"
             >
-                <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
+                <Image
+                    src="/google-icon.svg"
+                    alt="Google"
+                    width={20}
+                    height={20}
+                    priority
+                />
                 Sign up with Google
             </button>
         </div>

@@ -13,8 +13,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid input" }, { status: 400 });
         }
 
-        const exists = await prisma.user.findUnique({ where: { email: cleanEmail } });
-        if (exists) return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+        const exists = await prisma.user.findUnique({
+            where: { email: cleanEmail },
+        });
+        if (exists) {
+            return NextResponse.json(
+                { error: "Email already in use" },
+                { status: 409 }
+            );
+        }
 
         const passwordHash = await bcrypt.hash(pw, 10);
         await prisma.user.create({
@@ -22,8 +29,12 @@ export async function POST(req: NextRequest) {
         });
 
         return NextResponse.json({ ok: true });
-    } catch (e: any) {
-        console.error("POST /api/auth/signup error:", e);
+    } catch (e: unknown) {
+        if (e instanceof Error) {
+            console.error("POST /api/auth/signup error:", e.message, e.stack);
+        } else {
+            console.error("POST /api/auth/signup unknown error:", e);
+        }
         return NextResponse.json({ error: "SIGNUP_FAILED" }, { status: 500 });
     }
 }

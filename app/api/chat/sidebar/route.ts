@@ -11,12 +11,12 @@ export async function GET() {
         const session = await getServerSession(authOptions);
         const ownerId = session?.user?.id ?? null;
 
-        // Guests: nothing (or you can return empty arrays)
+        // Guests: return empty arrays
         if (!ownerId) {
             return NextResponse.json({ pinned: [], recents: [] });
         }
 
-        // Fetch minimal fields only
+        // Fetch pinned conversations
         const pinned = await prisma.conversation.findMany({
             where: { ownerId, deletedAt: null, pinned: true },
             select: { id: true, title: true, updatedAt: true },
@@ -24,6 +24,7 @@ export async function GET() {
             take: 50,
         });
 
+        // Fetch recent conversations
         const recents = await prisma.conversation.findMany({
             where: { ownerId, deletedAt: null, pinned: false },
             select: { id: true, title: true, updatedAt: true },
@@ -32,8 +33,12 @@ export async function GET() {
         });
 
         return NextResponse.json({ pinned, recents });
-    } catch (err: any) {
-        console.error("GET /api/chat/sidebar error:", err);
-        return NextResponse.json({ error: "SIDEBAR_FETCH_FAILED" }, { status: 500 });
+    } catch (e: unknown) {
+        const detail = e instanceof Error ? e.message : "Unknown error";
+        console.error("GET /api/chat/sidebar error:", detail);
+        return NextResponse.json(
+            { error: "SIDEBAR_FETCH_FAILED", detail },
+            { status: 500 }
+        );
     }
 }

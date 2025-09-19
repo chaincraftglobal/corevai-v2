@@ -6,23 +6,41 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
-type Body = { conversationId: string; content: string };
+// ---- helpers ----
+async function parseJson<T>(req: NextRequest): Promise<T | null> {
+    try {
+        return (await req.json()) as T;
+    } catch {
+        return null;
+    }
+}
 
+type PostBody = {
+    conversationId: string;
+    content: string;
+};
+
+// ---- POST: append a user message to a conversation you own ----
 export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        const body = (await req.json()) as Body;
-
-        if (!body?.conversationId || !body?.content?.trim()) {
-            return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-        }
-
-        // Only allow posting to your own conversation
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        const body = await parseJson<PostBody>(req);
+        const conversationId =
+            typeof body?.conversationId === "string" ? body.conversationId : "";
+        const content =
+            typeof body?.content === "string" ? body.content.trim() : "";
+
+        if (!conversationId || !content) {
+            return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+        }
+
+        // Ensure the conversation belongs to this user and isn't deleted
         const convo = await prisma.conversation.findFirst({
-            where: { id: body.conversationId, ownerId: session.user.id, deletedAt: null },
+            where: { id: conversationId, ownerId: session.user.id, deletedAt: null },
             select: { id: true },
         });
         if (!convo) {
@@ -30,39 +48,45 @@ export async function POST(req: NextRequest) {
         }
 
         await prisma.message.create({
-            data: {
-                conversationId: body.conversationId,
-                role: "user",
-                content: body.content.trim(),
-            },
+            data: { conversationId, role: "user", content },
         });
 
         await prisma.conversation.update({
-            where: { id: body.conversationId },
+            where: { id: conversationId },
             data: { updatedAt: new Date() },
             select: { id: true },
         });
 
         return NextResponse.json({ ok: true });
-    } catch (err: any) {
-        console.error("POST /api/chat/messages error:", err);
-        return NextResponse.json({ error: "MSG_CREATE_FAILED", detail: err?.message }, { status: 500 });
+    } catch (e: unknown) {
+        const detail = e instanceof Error ? e.message : "Unknown error";
+        console.error("POST /api/chat/messages error:", detail);
+        return NextResponse.json(
+            { error: "MSG_CREATE_FAILED", detail },
+            { status: 500 }
+        );
     }
 }
 
+// ---- GET: list messages for a conversation you own ----
 export async function GET(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        const { searchParams } = new URL(req.url);
-        const conversationId = searchParams.get("conversationId");
-
-        if (!conversationId) {
-            return NextResponse.json({ error: "conversationId required" }, { status: 400 });
-        }
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const { searchParams } = new URL(req.url);
+        const conversationId = searchParams.get("conversationId");
+
+        if (!conversationId) {
+            return NextResponse.json(
+                { error: "conversationId required" },
+                { status: 400 }
+            );
+        }
+
+        // Ownership check
         const convo = await prisma.conversation.findFirst({
             where: { id: conversationId, ownerId: session.user.id, deletedAt: null },
             select: { id: true },
@@ -78,8 +102,12 @@ export async function GET(req: NextRequest) {
         });
 
         return NextResponse.json({ messages });
-    } catch (err: any) {
-        console.error("GET /api/chat/messages error:", err);
-        return NextResponse.json({ error: "LIST_MSG_FAILED", detail: err?.message }, { status: 500 });
+    } catch (e: unknown) {
+        const detail = e instanceof Error ? e.message : "Unknown error";
+        console.error("GET /api/chat/messages error:", detail);
+        return NextResponse.json(
+            { error: "LIST_MSG_FAILED", detail },
+            { status: 500 }
+        );
     }
 }

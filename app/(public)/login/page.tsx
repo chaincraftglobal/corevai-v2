@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Image from "next/image";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -13,6 +14,7 @@ export default function LoginPage() {
         e.preventDefault();
         setErr(null);
         setLoading(true);
+
         const fd = new FormData(e.currentTarget);
         const email = (fd.get("email") as string).toLowerCase().trim();
         const password = fd.get("password") as string;
@@ -24,17 +26,34 @@ export default function LoginPage() {
             setErr("Invalid email or password.");
             return;
         }
-        router.push("/chats"); // or wherever your app entry is
+        router.push("/chats");
     };
 
     return (
         <div className="max-w-md mx-auto py-12">
             <h1 className="text-2xl font-semibold mb-6">Login to CoreVAI</h1>
+
             <form onSubmit={handleCredentials} className="space-y-4">
-                <input name="email" type="email" placeholder="Email" required className="w-full border px-3 py-2 rounded-md" />
-                <input name="password" type="password" placeholder="Password" required className="w-full border px-3 py-2 rounded-md" />
+                <input
+                    name="email"
+                    type="email"
+                    placeholder="Email"
+                    required
+                    className="w-full border px-3 py-2 rounded-md"
+                />
+                <input
+                    name="password"
+                    type="password"
+                    placeholder="Password"
+                    required
+                    className="w-full border px-3 py-2 rounded-md"
+                />
                 {err && <p className="text-sm text-red-600">{err}</p>}
-                <button type="submit" disabled={loading} className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800">
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800"
+                >
                     {loading ? "Logging in..." : "Login"}
                 </button>
             </form>
@@ -45,7 +64,13 @@ export default function LoginPage() {
                 onClick={() => signIn("google", { callbackUrl: "/chats" })}
                 className="w-full flex items-center justify-center gap-2 border py-2 rounded-md hover:bg-gray-50"
             >
-                <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
+                <Image
+                    src="/google-icon.svg"
+                    alt="Google"
+                    width={20}
+                    height={20}
+                    priority
+                />
                 Continue with Google
             </button>
         </div>

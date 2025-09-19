@@ -1,7 +1,7 @@
 // components/CodeBlock.tsx
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 // Prism (explicit language)
 import { Prism as PrismHighlighter } from "react-syntax-highlighter";
@@ -11,64 +11,67 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Light as HLJSHighlighter } from "react-syntax-highlighter";
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 
-type Props = {
+type CodeBlockProps = {
     inline?: boolean;
     className?: string;
     children?: string | string[];
 };
 
-export default function CodeBlock({ inline, className, children }: Props) {
+export default function CodeBlock({
+    inline = false,
+    className = "",
+    children,
+}: CodeBlockProps) {
     const [copied, setCopied] = useState(false);
 
-    const code = (Array.isArray(children) ? children.join("") : children) ?? "";
-    const match = /language-(\w+)/.exec(className || "");
-    const lang = match?.[1]; // present if fenced: ```js / ```ts etc.
+    const code = useMemo(
+        () => (Array.isArray(children) ? children.join("") : children) ?? "",
+        [children]
+    );
 
-    if (inline) {
-        return (
-            <code className="rounded bg-gray-100 px-1.5 py-0.5 text-[0.9em] font-mono">
-                {code}
-            </code>
-        );
-    }
+    const lang = useMemo(() => {
+        const match = /language-(\w+)/.exec(className);
+        return match?.[1];
+    }, [className]);
 
     const onCopy = async () => {
         try {
             await navigator.clipboard.writeText(code);
             setCopied(true);
             setTimeout(() => setCopied(false), 1200);
-        } catch (e) {
-            console.error("Copy failed", e);
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.error("Copy failed", err);
         }
     };
 
-    const sharedContainer = (
-        <div className="relative group my-3 overflow-hidden rounded-xl border border-gray-200">
+    if (inline) {
+        return (
+            <code className="rounded bg-gray-100 px-1.5 py-0.5 text-[0.9em] font-mono dark:bg-neutral-800/60">
+                {code}
+            </code>
+        );
+    }
+
+    const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+        <div className="relative group my-3 overflow-hidden rounded-xl border border-gray-200 dark:border-neutral-800">
             <button
+                type="button"
                 onClick={onCopy}
-                className="absolute right-2 top-2 z-10 rounded-md border bg-white/80 px-2 py-1 text-xs text-gray-700 opacity-0 transition group-hover:opacity-100 hover:bg-white"
-                aria-label="Copy code"
+                className="absolute right-2 top-2 z-10 rounded-md border bg-white/80 px-2 py-1 text-xs text-gray-700 opacity-0 transition group-hover:opacity-100 hover:bg-white dark:bg-neutral-900/80 dark:text-neutral-200 dark:border-neutral-700"
+                aria-label="Copy code to clipboard"
                 title="Copy"
             >
                 {copied ? "Copied" : "Copy"}
             </button>
-            {/* highlighter renders here */}
-            <div className="code-host" />
+            {children}
         </div>
     );
 
-    // Render with Prism if language is known; otherwise use HLJS for auto-detect
+    // Prism for explicit language
     if (lang) {
         return (
-            <div className="relative group my-3 overflow-hidden rounded-xl border border-gray-200">
-                <button
-                    onClick={onCopy}
-                    className="absolute right-2 top-2 z-10 rounded-md border bg-white/80 px-2 py-1 text-xs text-gray-700 opacity-0 transition group-hover:opacity-100 hover:bg-white"
-                    aria-label="Copy code"
-                    title="Copy"
-                >
-                    {copied ? "Copied" : "Copy"}
-                </button>
+            <Wrapper>
                 <PrismHighlighter
                     language={lang}
                     style={oneDark}
@@ -83,21 +86,13 @@ export default function CodeBlock({ inline, className, children }: Props) {
                 >
                     {code}
                 </PrismHighlighter>
-            </div>
+            </Wrapper>
         );
     }
 
-    // No language → autodetect with Highlight.js
+    // HLJS for auto-detect when no language provided
     return (
-        <div className="relative group my-3 overflow-hidden rounded-xl border border-gray-200">
-            <button
-                onClick={onCopy}
-                className="absolute right-2 top-2 z-10 rounded-md border bg-white/80 px-2 py-1 text-xs text-gray-700 opacity-0 transition group-hover:opacity-100 hover:bg-white"
-                aria-label="Copy code"
-                title="Copy"
-            >
-                {copied ? "Copied" : "Copy"}
-            </button>
+        <Wrapper>
             <HLJSHighlighter
                 style={atomOneDark}
                 customStyle={{
@@ -111,6 +106,6 @@ export default function CodeBlock({ inline, className, children }: Props) {
             >
                 {code}
             </HLJSHighlighter>
-        </div>
+        </Wrapper>
     );
 }

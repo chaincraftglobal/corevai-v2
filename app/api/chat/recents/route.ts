@@ -14,7 +14,9 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const limit = Math.max(1, Math.min(50, Number(searchParams.get("limit") ?? 10)));
+        const rawLimit = searchParams.get("limit");
+        const parsedLimit = rawLimit ? Number(rawLimit) : 10;
+        const limit = Math.max(1, Math.min(50, Number.isNaN(parsedLimit) ? 10 : parsedLimit));
 
         const conversations = await prisma.conversation.findMany({
             where: { ownerId: session.user.id, deletedAt: null },
@@ -31,8 +33,12 @@ export async function GET(req: NextRequest) {
         });
 
         return NextResponse.json({ conversations });
-    } catch (err: any) {
-        console.error("GET /api/chat/recents error:", err);
-        return NextResponse.json({ error: "RECENTS_FAILED", detail: err?.message }, { status: 500 });
+    } catch (e: unknown) {
+        const detail = e instanceof Error ? e.message : "Unknown error";
+        console.error("GET /api/chat/recents error:", detail);
+        return NextResponse.json(
+            { error: "RECENTS_FAILED", detail },
+            { status: 500 }
+        );
     }
 }

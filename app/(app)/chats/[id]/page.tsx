@@ -19,7 +19,7 @@ import {
   type Message,
   getConversation,
   updateConversation,
-  streamAssistant, // must return { assistantId } from /api/chat/stream headers
+  streamAssistant,
   createConversation,
 } from "@/lib/chat";
 
@@ -69,14 +69,15 @@ export default function ChatPage() {
       setConvTitle(title || "Untitled chat");
       setProjectId(pid);
       setMessages(messages);
-    } catch (e: any) {
-      if (e?.status === 404) {
+    } catch (e: unknown) {
+      const err = e as { status?: number };
+      if (err?.status === 404) {
         try {
           const { id: newId } = await createConversation();
           router.replace(`/chats/${newId}`);
           return;
-        } catch (err) {
-          console.error("autocreate failed after 404:", err);
+        } catch (inner) {
+          console.error("autocreate failed after 404:", inner);
         }
       } else {
         console.error("loadAll error:", e);
@@ -114,10 +115,8 @@ export default function ChatPage() {
     let finalBuffer = "";
 
     try {
-      // persist user message
       await sendMessage(id, text);
 
-      // stream assistant
       const { assistantId } = await streamAssistant(
         id,
         text,
@@ -131,7 +130,6 @@ export default function ChatPage() {
         abortRef.current.signal
       );
 
-      // finalize assistant bubble locally
       const finalText = finalBuffer.trim();
       if (finalText) {
         setMessages((prev) => [
@@ -146,7 +144,6 @@ export default function ChatPage() {
       }
       setStreamText("");
 
-      // background reconcile with DB
       setTimeout(async () => {
         try {
           const { messages: serverMsgs } = await listMessages(id);
@@ -166,17 +163,18 @@ export default function ChatPage() {
           } else {
             setMessages((prev) => mergeById(prev, serverMsgs));
           }
-        } catch (e) {
-          console.warn("background reconcile failed:", e);
+        } catch (err) {
+          console.warn("background reconcile failed:", err);
         }
       }, 500);
-    } catch (e: any) {
-      if (e?.name === "AbortError") {
+    } catch (e: unknown) {
+      const err = e as { name?: string; status?: number; data?: { need2FA?: boolean; redirect?: string } };
+      if (err?.name === "AbortError") {
         setStreamText("");
-      } else if (e?.status === 429) {
+      } else if (err?.status === 429) {
         setGuestBlocked(true);
-      } else if (e?.status === 401 && e?.data?.need2FA) {
-        window.location.href = e.data.redirect || "/2fa";
+      } else if (err?.status === 401 && err?.data?.need2FA) {
+        window.location.href = err.data.redirect || "/2fa";
       } else {
         console.error("onSend error:", e);
       }

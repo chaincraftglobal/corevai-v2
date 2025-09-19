@@ -1,9 +1,12 @@
+// app/settings/security/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Image from "next/image";
 
 type SetupResp = { base32: string; otpauth: string; qrDataUrl: string };
 type EnableResp = { ok: true; backupCodes: string[] };
+type DisableResp = { ok: true } | { error: string };
 
 export default function SecuritySettingsPage() {
     const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -12,14 +15,17 @@ export default function SecuritySettingsPage() {
     const [token, setToken] = useState("");
     const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
 
-    // You may fetch `/api/me` to know if 2FA is enabled; for MVP we lazy fetch on open.
-
     const startSetup = async () => {
         setPending(true);
         try {
-            const r = await fetch("/api/mfa/setup");
+            const r = await fetch("/api/mfa/setup", { cache: "no-store" });
+            if (!r.ok) throw new Error("Failed to start setup");
             const j = (await r.json()) as SetupResp;
             setSetup(j);
+            setEnabled(false);
+        } catch (e) {
+            console.error(e);
+            alert("Could not start 2FA setup.");
         } finally {
             setPending(false);
         }
@@ -32,17 +38,20 @@ export default function SecuritySettingsPage() {
             const r = await fetch("/api/mfa/enable", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ base32: setup.base32, token }),
+                body: JSON.stringify({ base32: setup.base32, token: token.trim() }),
             });
-            const j = (await r.json()) as EnableResp | { error: string };
+            const j = (await r.json()) as EnableResp | { error?: string };
             if ("ok" in j) {
                 setEnabled(true);
                 setBackupCodes(j.backupCodes);
                 setSetup(null);
                 setToken("");
             } else {
-                alert(j.error || "Failed to enable");
+                alert(j.error || "Failed to enable 2FA");
             }
+        } catch (e) {
+            console.error(e);
+            alert("Could not verify code.");
         } finally {
             setPending(false);
         }
@@ -52,15 +61,18 @@ export default function SecuritySettingsPage() {
         setPending(true);
         try {
             const r = await fetch("/api/mfa/disable", { method: "POST" });
-            const j = await r.json();
-            if (j.ok) {
+            const j = (await r.json()) as DisableResp;
+            if ("ok" in j && j.ok) {
                 setEnabled(false);
                 setBackupCodes(null);
                 setSetup(null);
                 setToken("");
             } else {
-                alert(j.error || "Failed to disable");
+                alert(("error" in j && j.error) || "Failed to disable 2FA");
             }
+        } catch (e) {
+            console.error(e);
+            alert("Could not disable 2FA.");
         } finally {
             setPending(false);
         }
@@ -90,7 +102,7 @@ export default function SecuritySettingsPage() {
                         <button
                             onClick={startSetup}
                             disabled={pending}
-                            className="rounded-md bg-black text-white px-3 py-2 text-sm"
+                            className="rounded-md bg-black text-white px-3 py-2 text-sm disabled:opacity-60"
                         >
                             {pending ? "…" : "Set up 2FA"}
                         </button>
@@ -100,12 +112,23 @@ export default function SecuritySettingsPage() {
                 {setup && (
                     <div className="mt-4 space-y-4">
                         <div className="flex items-start gap-4">
-                            {/* QR */}
-                            <img src={setup.qrDataUrl} alt="QR for authenticator app" className="h-32 w-32 border rounded-md" />
+                            {/* QR with next/image */}
+                            <div className="h-32 w-32 relative border rounded-md overflow-hidden bg-white">
+                                <Image
+                                    src={setup.qrDataUrl}
+                                    alt="QR for authenticator app"
+                                    fill
+                                    sizes="128px"
+                                    priority
+                                />
+                            </div>
                             <div className="text-sm">
-                                <div className="font-medium mb-1">Scan this QR code with your authenticator app</div>
+                                <div className="font-medium mb-1">
+                                    Scan this QR code with your authenticator app
+                                </div>
                                 <div className="text-gray-600 break-all">
-                                    Or manually enter this secret: <span className="font-mono">{setup.base32}</span>
+                                    Or manually enter this secret:{" "}
+                                    <span className="font-mono">{setup.base32}</span>
                                 </div>
                             </div>
                         </div>
@@ -117,11 +140,12 @@ export default function SecuritySettingsPage() {
                                 placeholder="Enter 6-digit code"
                                 inputMode="numeric"
                                 className="border rounded-md px-2 py-1 text-sm w-40"
+                                aria-label="6-digit authentication code"
                             />
                             <button
                                 onClick={enable2FA}
                                 disabled={pending || token.trim().length < 6}
-                                className="rounded-md bg-black text-white px-3 py-1.5 text-sm"
+                                className="rounded-md bg-black text-white px-3 py-1.5 text-sm disabled:opacity-60"
                             >
                                 {pending ? "Verifying…" : "Verify & Enable"}
                             </button>
@@ -131,8 +155,14 @@ export default function SecuritySettingsPage() {
 
                 {enabled && (
                     <div className="mt-4 flex items-center justify-between">
-                        <div className="text-sm text-gray-600">You can disable 2FA at any time.</div>
-                        <button onClick={disable2FA} disabled={pending} className="rounded-md border px-3 py-1.5 text-sm">
+                        <div className="text-sm text-gray-600">
+                            You can disable 2FA at any time.
+                        </div>
+                        <button
+                            onClick={disable2FA}
+                            disabled={pending}
+                            className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-60"
+                        >
                             {pending ? "…" : "Disable 2FA"}
                         </button>
                     </div>

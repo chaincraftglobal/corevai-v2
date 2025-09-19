@@ -1,0 +1,56 @@
+{
+    "root": true,
+    "extends": [
+        "next/core-web-vitals",
+        "eslint:recommended",
+        "plugin:@typescript-eslint/recommended"
+    ],
+    "plugins": [
+        "@typescript-eslint"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+    },
+    "ignorePatterns": [
+        ".next/",
+        "node_modules/",
+        "coverage/",
+        "dist/",
+        "build/"
+    ],
+    "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-unused-vars": "warn",
+        "@next/next/no-img-element": "off",
+        "@typescript-eslint/no-require-imports": "off",
+        "react/react-in-jsx-scope": "off"
+    },
+    "overrides": [
+        {
+            "files": [
+                "app/**/*.ts",
+                "app/**/*.tsx",
+                "app/api/**/*.ts",
+                "lib/**/*.ts",
+                "lib/**/*.tsx",
+                "components/**/*.ts",
+                "components/**/*.tsx",
+                "types/**/*.d.ts"
+            ],
+            "rules": {
+                "@typescript-eslint/no-explicit-any": "off",
+                "@typescript-eslint/no-unused-vars": "warn"
+            }
+        },
+        {
+            "files": [
+                "prisma/seed.js"
+            ],
+            "rules": {
+                "@typescript-eslint/no-require-imports": "off"
+            }
+        }
+    ]
+}
