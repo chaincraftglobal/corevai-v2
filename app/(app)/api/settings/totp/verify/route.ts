@@ -1,37 +1,61 @@
+// app/(app)/api/settings/totp/verify/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyTotp } from "@/lib/totp";
 import { generateBackupCodes, hashCodes } from "@/lib/backup";
-import { MFA_OK_COOKIE, MFA_WINDOW_SECONDS } from "@/lib/mfa";
+import { MFA_OK_COOKIE } from "@/lib/mfa";
 
 export async function POST(req: NextRequest) {
     const session = await auth();
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+        return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    }
 
-    const { code } = await req.json();
-    if (!code || typeof code !== "string") return NextResponse.json({ error: "Invalid code" }, { status: 400 });
+    const { token } = await req.json();
+    if (!token) {
+        return NextResponse.json({ error: "MISSING_TOKEN" }, { status: 400 });
+    }
 
-    const tf = await prisma.twoFactor.findUnique({ where: { userId: session.user.id } });
-    if (!tf) return NextResponse.json({ error: "Not initialized" }, { status: 400 });
+    const tf = await prisma.twoFactor.findUnique({
+        where: { userId: session.user.id },
+    });
 
-    const ok = verifyTotp(code, tf.secret);
-    if (!ok) return NextResponse.json({ error: "Invalid TOTP" }, { status: 400 });
+    if (!tf?.enabled) {
+        return NextResponse.json({ error: "2FA_NOT_ENABLED" }, { status: 400 });
+    }
 
-    // enable and (re)issue backup codes
-    const codes = generateBackupCodes(10);
-    const hashes = await hashCodes(codes);
+    // ✅ Correct usage: pass code + secret separately
+    const ok = verifyTotp(token, tf.secret);
+    if (!ok) {
+        return NextResponse.json({ error: "INVALID_TOKEN" }, { status: 400 });
+    }
 
-    await prisma.$transaction([
-        prisma.twoFactor.update({ where: { userId: session.user.id }, data: { enabled: true } }),
-        prisma.backupCode.deleteMany({ where: { userId: session.user.id } }),
-        prisma.backupCode.createMany({
-            data: hashes.map((h) => ({ userId: session.user.id, codeHash: h })),
-        }),
-    ]);
+    // generate backup codes if none exist
+    const codes = await prisma.backupCode.findMany({
+        where: { userId: session.user.id, usedAt: null },
+    });
 
-    const res = NextResponse.json({ ok: true, backupCodes: codes });
-    // mark this browser as MFA-OK for 12h (for API enforcement)
-    res.cookies.set(MFA_OK_COOKIE, "1", { path: "/", sameSite: "lax", maxAge: MFA_WINDOW_SECONDS });
+    let newCodes: string[] = [];
+    if (codes.length === 0) {
+        newCodes = generateBackupCodes();
+        const hashed = await hashCodes(newCodes);
+        await prisma.backupCode.createMany({
+            data: hashed.map((code) => ({
+                userId: session.user.id,
+                codeHash: code,
+            })),
+        });
+    }
+
+    // set MFA_OK cookie
+    const res = NextResponse.json({ ok: true, backupCodes: newCodes });
+    res.cookies.set(MFA_OK_COOKIE, "1", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
+        maxAge: 60 * 10, // 10 minutes
+    });
+
     return res;
 }
